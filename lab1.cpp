@@ -1,8 +1,11 @@
-//
-//modified by:
-//date:
-//
-//3350 Spring 2019 Lab-1
+/*
+modified by: Hussain Jafri
+date: 9/24/2019
+Filename: lab1.cpp
+Instructor: Gordon Griesel
+3350 Spring 2019 Lab-1
+*/
+
 //This program demonstrates the use of OpenGL and XWindows
 //
 //Assignment is to modify this program.
@@ -39,6 +42,7 @@ using namespace std;
 #include <X11/Xlib.h>
 #include <X11/keysym.h>
 #include <GL/glx.h>
+#include "fonts.h"
 
 const int MAX_PARTICLES = 2000;
 const float GRAVITY     = 0.1;
@@ -61,26 +65,26 @@ struct Particle {
 };
 
 class Global {
-public:
-	int xres, yres;
-	Shape box;
-	Particle particle[MAX_PARTICLES];
-	int n;
-	Global();
+	public:
+		int xres, yres;
+		Shape box[5];
+		Particle particle[MAX_PARTICLES];
+		int n;
+		Global();
 } g;
 
 class X11_wrapper {
-private:
-	Display *dpy;
-	Window win;
-	GLXContext glc;
-public:
-	~X11_wrapper();
-	X11_wrapper();
-	void set_title();
-	bool getXPending();
-	XEvent getXNextEvent();
-	void swapBuffers();
+	private:
+		Display *dpy;
+		Window win;
+		GLXContext glc;
+	public:
+		~X11_wrapper();
+		X11_wrapper();
+		void set_title();
+		bool getXPending();
+		XEvent getXNextEvent();
+		void swapBuffers();
 } x11;
 
 //Function prototypes
@@ -123,10 +127,12 @@ Global::Global()
 	xres = 800;
 	yres = 600;
 	//define a box shape
-	box.width = 100;
-	box.height = 10;
-	box.center.x = 120 + 5*65;
-	box.center.y = 500 - 5*60;
+	for (int i = 0; i < 5; i++) {
+		box[i].width = 100;
+		box[i].height = 10;
+		box[i].center.x = 120 + i*65;
+		box[i].center.y = 500 - i*60;
+	}
 	n = 0;
 }
 
@@ -163,7 +169,7 @@ X11_wrapper::X11_wrapper()
 		PointerMotionMask |
 		StructureNotifyMask | SubstructureNotifyMask;
 	win = XCreateWindow(dpy, root, 0, 0, w, h, 0, vi->depth,
-		InputOutput, vi->visual, CWColormap | CWEventMask, &swa);
+			InputOutput, vi->visual, CWColormap | CWEventMask, &swa);
 	set_title();
 	glc = glXCreateContext(dpy, vi, NULL, GL_TRUE);
 	glXMakeCurrent(dpy, win, glc);
@@ -207,6 +213,9 @@ void init_opengl(void)
 	glOrtho(0, g.xres, 0, g.yres, -1, 1);
 	//Set the screen background color
 	glClearColor(0.1, 0.1, 0.1, 1.0);
+	// Inserted glEnable function and intialize_fonts function
+	glEnable(GL_TEXTURE_2D);
+	initialize_fonts();
 }
 
 void makeParticle(int x, int y)
@@ -263,17 +272,14 @@ void check_mouse(XEvent *e)
 	if (e->type == MotionNotify) {
 		//The mouse moved!
 		if (savex != e->xbutton.x || savey != e->xbutton.y) {
-		    
+
 			savey = e->xbutton.y;
 			savex = e->xbutton.x;
 			//Code placed here will execute whenever the mouse moves.
 			int y = g.yres - e->xbutton.y;
 			for(int i=0; i<10;i++){
-			    makeParticle(e->xbutton.x,y);
+				makeParticle(e->xbutton.x,y);
 			}
-
-
-
 		}
 	}
 }
@@ -304,83 +310,123 @@ void movement()
 
 	if (g.n <= 0)
 		return;
-	for( int i=0; i<g.n; i++){
+	for( int i=0; i<g.n; i++) {
 	Particle *p = &g.particle[i];
 	p->s.center.x += p->velocity.x;
 	p->s.center.y += p->velocity.y;
 	p->velocity.y -=GRAVITY;
 
-	//check for collision with shapes...
-	Shape *s =&g.box;
-	if(p->s.center.y < s->center.y + s->height &&
-	      p->s.center.x > s->center.x - s->width &&
-	      p->s.center.x < s->center.x + s->width){  
-	    p->velocity.y =-(p->velocity.y*0.8);
+		//check for collision with shapes...
+		/*
+		   Shape *s =&g.box;
+
+		   if(p->s.center.y < s->center.y + s->height &&
+		   p->s.center.x > s->center.x - s->width &&
+		   p->s.center.x < s->center.x + s->width){  
+		   p->velocity.y =-(p->velocity.y*0.8);
+		   }
+		   */
+
+		Shape *s;
+		for (int i = 0; i < 5; i++) {
+			s = &g.box[i];
+			if (p->s.center.x >= s-> center.x - s->width &&
+			p->s.center.x <= s-> center.x + s-> width &&                 		 
+			p->s.center.y <  s-> center.y + s-> height &&
+			p->s.center.y >  s-> center.y - s-> height){
+		p->velocity.y *= -0.25;
+		p->velocity.x *= 1.05;
+		p->s.center.y += 4;
+		}
 	}
-	
 
 
-
-
-	//check for off-screen
-	if (p->s.center.y < 0.0) {
-		//cout << "off screen" << endl;	
-	    g.particle[i] =g.particle[g.n-1];		
-	    --g.n;
+			//check for off-screen
+			if (p->s.center.y < 0.0) {
+				//cout << "off screen" << endl;	
+				g.particle[i] =g.particle[g.n-1];		
+				--g.n;
+			}
+		}
 	}
-	}
-}
 
-void render()
-{
-	glClear(GL_COLOR_BUFFER_BIT);
-	//Draw shapes...
-	//draw the box
-	Shape *s;
-	glColor3ub(90,140,90);
-	s = &g.box;
-	glPushMatrix();
-	glTranslatef(s->center.x, s->center.y, s->center.z);
-	float w, h;
-	w = s->width;
-	h = s->height;
-	glBegin(GL_QUADS);
-		glVertex2i(-w, -h);
-		glVertex2i(-w,  h);
-		glVertex2i( w,  h);
-		glVertex2i( w, -h);
-	glEnd();
-	glPopMatrix();
-	//
-	//Draw particles here
-	//if (g.n > 0) {
-	for(int i=0; i<g.n ;i++){
-		//There is at least one particle to draw.
+	void render()
+	{
+		Rect r[5];
+		glClear(GL_COLOR_BUFFER_BIT);
+		//Draw shapes...
+		//draw the box
+		Shape *s;
+		glColor3ub(90,140,90);
+		float w, h;
+		for (int i = 0; i < 5; i++) {
+			s = &g.box[i];
 		glPushMatrix();
-		glColor3ub(150,160,220);
-		Vec *c = &g.particle[i].s.center;
-		w = h = 2;
+		glTranslatef(s->center.x, s->center.y, s->center.z);
+		//float w, h;
+		w = s->width;
+		h = s->height;
 		glBegin(GL_QUADS);
-			glVertex2i(c->x-w, c->y-h);
-			glVertex2i(c->x-w, c->y+h);
-			glVertex2i(c->x+w, c->y+h);
-			glVertex2i(c->x+w, c->y-h);
+			glVertex2i(-w, -h);
+			glVertex2i(-w,  h);
+			glVertex2i( w,  h);
+			glVertex2i( w, -h);
 		glEnd();
 		glPopMatrix();
+		}
+		//Draw particles here
+		//if (g.n > 0) {
+		for (int i=0; i<g.n ;i++) {
+			//There is at least one particle to draw.
+			glPushMatrix();
+			glColor3ub(150,160,220);
+			Vec *c = &g.particle[i].s.center;
+			w = h = 2;
+			glBegin(GL_QUADS);
+				glVertex2i(c->x-w, c->y-h);
+				glVertex2i(c->x-w, c->y+h);
+				glVertex2i(c->x+w, c->y+h);
+				glVertex2i(c->x+w, c->y-h);
+			glEnd();
+			glPopMatrix();
+		}
+		//Draw your 2D text here
+		//Started drawing the 2D text
+		r[0].bot = 580;
+		r[0].left = 15;
+		r[0].center = 0;
+		ggprint8b(&r[0], 16, 0xFFFFFE, "Waterfall Model");
+
+
+		r[0].bot = 495;
+		r[0].left = 80;
+		r[0].center = 0;
+		ggprint8b(&r[0], 16, 0xFFFF00, "Requirements");
+
+
+		r[0].bot = 437;
+		r[0].left = 165;
+		r[0].center = 0;
+		ggprint8b(&r[0], 16, 0xFFFF00, "Design");
+
+
+		r[0].bot = 376;
+		r[0].left = 199;
+		r[0].center = 0;
+		ggprint8b(&r[0], 16, 0xFFFF00, "Implementation");
+
+
+		r[0].bot = 315;
+		r[0].left = 279;
+		r[0].center = 0;
+		ggprint8b(&r[0], 16, 0xFFFF00, "Verification");
+
+
+		r[0].bot = 255;
+		r[0].left = 340;
+		r[0].center = 0;
+		ggprint8b(&r[0], 16, 0xFFFF00, "Maintenance");
 	}
-	//
-	//Draw your 2D text here
-
-
-
-
-
-
-
-
-
-}
-
 
 
 
